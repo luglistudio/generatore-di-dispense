@@ -483,11 +483,11 @@ HTML_TEMPLATE = """
                     <span class="btn-arrow">➔</span>
                 </button>
                 <button class="btn action-btn" onclick="runAction('blueprint')">
-                    <span>2. Genera Blueprint</span>
+                    <span>2. Genera Indice</span>
                     <span class="btn-arrow">➔</span>
                 </button>
                 <button class="btn action-btn" onclick="runAction('write')">
-                    <span>3. Scrivi Sezioni</span>
+                    <span>3. Scrivi Capitoli</span>
                     <span class="btn-arrow">➔</span>
                 </button>
                 <button class="btn action-btn" onclick="runAction('concepts')">
@@ -500,7 +500,7 @@ HTML_TEMPLATE = """
                 </button>
                 
                 <button class="btn btn-primary action-btn" onclick="runAction('all')" style="margin-top: 10px;">
-                    ▶️ AVVIA PROCESSO COMPLETO
+                    ▶️ CREA DISPENSA COMPLETA
                 </button>
             </div>
         </div>
