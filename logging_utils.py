@@ -1,6 +1,23 @@
 import datetime
 import re
 from pathlib import Path
+from typing import Callable, List
+
+# Hook per interfacce grafiche (ricevono: level, clean_msg)
+_log_callbacks: List[Callable[[str, str], None]] = []
+
+def add_log_callback(callback: Callable[[str, str], None]):
+    """Aggiunge una funzione che verrà chiamata ad ogni log."""
+    _log_callbacks.append(callback)
+
+def _dispatch_callbacks(level: str, msg: str):
+    # Rimuove sequenze di escape ANSI per il testo visualizzato nella GUI
+    clean_msg = re.sub(r'\x1b\[[0-9;-]*m', '', msg)
+    for cb in _log_callbacks:
+        try:
+            cb(level, clean_msg)
+        except Exception:
+            pass
 
 def _log_to_file(level: str, msg: str):
     try:
@@ -18,11 +35,14 @@ def _log_to_file(level: str, msg: str):
 def log_info(msg: str):
     print(msg)
     _log_to_file("INFO", msg)
+    _dispatch_callbacks("INFO", msg)
 
 def log_warning(msg: str):
     print(msg)
     _log_to_file("WARNING", msg)
+    _dispatch_callbacks("WARNING", msg)
 
 def log_error(msg: str):
     print(msg)
     _log_to_file("ERROR", msg)
+    _dispatch_callbacks("ERROR", msg)

@@ -975,6 +975,99 @@ def create_obsidian_config(project_dir: Path):
         except Exception:
             pass
 
+def select_notebook_terminal() -> str:
+    """Interroga la CLI per ottenere i notebook esistenti e mostra un menu interattivo nel terminale."""
+    log_info("🔍 Recupero della lista dei notebook su NotebookLM...")
+    res = subprocess.run(["notebooklm", "list", "--json"], capture_output=True, text=True)
+    notebooks = []
+    if res.returncode == 0:
+        try:
+            data = json.loads(res.stdout)
+            if isinstance(data, list):
+                notebooks = data
+            elif isinstance(data, dict):
+                notebooks = data.get("notebooks", []) or data.get("items", []) or []
+        except Exception:
+            pass
+
+    if not notebooks:
+        name = input("Nessun notebook trovato. Inserisci il nome del nuovo notebook da creare: ").strip()
+        if not name:
+            name = "Dispensa_Corso_Autonoma"
+        return name
+
+    options = ["[Crea un nuovo notebook...]"] + [nb.get("title") for nb in notebooks if nb.get("title")]
+    
+    import sys
+    if sys.stdin.isatty():
+        try:
+            import tty
+            import termios
+            
+            def getch():
+                fd = sys.stdin.fileno()
+                old_settings = termios.tcgetattr(fd)
+                try:
+                    tty.setraw(fd)
+                    ch = sys.stdin.read(1)
+                finally:
+                    termios.tcsetattr(fd, termios.TCSADRAIN, old_settings)
+                return ch
+                
+            selected = 0
+            while True:
+                # Pulisce lo schermo
+                sys.stdout.write("\x1b[2J\x1b[H")
+                sys.stdout.write("\x1b[36m=== SELEZIONA IL NOTEBOOK DA USARE ===\x1b[0m\n\n")
+                for i, opt in enumerate(options):
+                    if i == selected:
+                        sys.stdout.write(f"  \x1b[1;32m>\x1b[0m \x1b[1;37m{opt}\x1b[0m\n")
+                    else:
+                        sys.stdout.write(f"    {opt}\n")
+                sys.stdout.write("\n(Usa le frecce ⬆️/⬇️ per navigare, premi INVIO per selezionare)\n")
+                sys.stdout.flush()
+                
+                ch = getch()
+                if ch in ('\r', '\n'):
+                    break
+                elif ch == '\x1b':
+                    ch2 = getch()
+                    ch3 = getch()
+                    if ch2 == '[':
+                        if ch3 == 'A':
+                            selected = (selected - 1) % len(options)
+                        elif ch3 == 'B':
+                            selected = (selected + 1) % len(options)
+            
+            sys.stdout.write("\n\n")
+            sys.stdout.flush()
+            
+            if selected == 0:
+                name = input("Inserisci il nome del nuovo notebook da creare: ").strip()
+                return name if name else "Dispensa_Corso_Autonoma"
+            else:
+                return options[selected]
+        except Exception:
+            pass
+
+    # Fallback standard
+    print("\n=== NOTEBOOK DISPONIBILI ===")
+    for i, opt in enumerate(options):
+        print(f"[{i}] {opt}")
+    
+    try:
+        scelta = input(f"\nInserisci il numero desiderato (0-{len(options)-1}): ").strip()
+        idx = int(scelta)
+        if idx == 0:
+            name = input("Inserisci il nome del nuovo notebook: ").strip()
+            return name if name else "Dispensa_Corso_Autonoma"
+        elif 0 < idx < len(options):
+            return options[idx]
+    except Exception:
+        pass
+        
+    return "Dispensa_Corso_Autonoma"
+
 def main():
     parser = argparse.ArgumentParser(description="Generatore Autonomo di Dispense via NotebookLM CLI")
     parser.add_argument(
@@ -1013,6 +1106,10 @@ def main():
 
     project_dir = Path(__file__).parent.resolve()
     
+    # Se il notebook non è esplicitato negli argomenti CLI, lo facciamo selezionare interattivamente
+    if "-n" not in sys.argv and "--notebook-name" not in sys.argv and args.action != "init" and args.action != "compile":
+        args.notebook_name = select_notebook_terminal()
+
     # 1. Inizializzazione cartelle e controllo Auth
     if args.action == "init":
         setup_directories(project_dir)
