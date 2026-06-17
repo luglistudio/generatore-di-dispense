@@ -687,7 +687,8 @@ def write_sections(project_dir: Path, notebook_name: str = "default", force: boo
         ch_title = chapter["title"]
         log_info(f"\n📖 Capitolo {ch_num}: {ch_title}")
 
-        for sec in chapter.get("sections", []):
+        sections_in_chapter = chapter.get("sections", [])
+        for sec in sections_in_chapter:
             sec_num = sec["section_number"]
             sec_title = sec["title"]
             
@@ -731,19 +732,21 @@ def write_sections(project_dir: Path, notebook_name: str = "default", force: boo
                 continue
             log_progress(sec_num, f"✅ Bozza principale ricevuta ({len(section_content.split())} parole).")
 
-            # Genera materiali QA di supporto ed appendili in coda
-            log_progress(sec_num, "📡 Invio richiesta a NotebookLM per materiale di autoverifica (flashcard e quiz)...")
-            prompt_qa = prompts.QA_GENERATOR_PROMPT.format(
-                section_number=sec_num,
-                section_title=sec_title,
-                section_content=section_content
-            )
-            qa_content = ask_notebooklm(prompt_qa, source_ids=source_ids)
-            if qa_content:
-                log_progress(sec_num, "✅ Materiale di autoverifica ricevuto.")
-                section_content += "\n\n---\n\n## 🧠 Materiale di Autoverifica\n\n" + qa_content
-            else:
-                log_progress(sec_num, "⚠️ Impossibile generare materiale di autoverifica, proseguo comunque.")
+            # Genera materiali QA di supporto ed appendili in coda (solo se è l'ultima sezione del capitolo)
+            is_last_section = (sec == sections_in_chapter[-1])
+            if is_last_section:
+                log_progress(sec_num, f"📡 Invio richiesta a NotebookLM per materiale di autoverifica dell'intero Capitolo {ch_num} (3 flashcard e 1 domanda d'esame)...")
+                prompt_qa = prompts.CHAPTER_QA_GENERATOR_PROMPT.format(
+                    chapter_number=ch_num,
+                    chapter_title=ch_title
+                )
+                # Attinge a tutto il notebook per il riepilogo del capitolo (source_ids=None)
+                qa_content = ask_notebooklm(prompt_qa, source_ids=None)
+                if qa_content:
+                    log_progress(sec_num, "✅ Materiale di autoverifica del capitolo ricevuto.")
+                    section_content += "\n\n---\n\n## 🧠 Materiale di Autoverifica del Capitolo\n\n" + qa_content
+                else:
+                    log_progress(sec_num, "⚠️ Impossibile generare materiale di autoverifica, proseguo comunque.")
 
             # Genera Diagramma Mermaid se necessario ed appendilo
             log_progress(sec_num, "📡 Invio richiesta a NotebookLM per diagramma concettuale Mermaid...")

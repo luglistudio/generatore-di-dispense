@@ -98,16 +98,16 @@ LINEE GUIDA CRITICHE PER LA STESURA:
 Inizia a scrivere direttamente il testo della sezione in formato Markdown, senza preamboli come "Ecco la sezione..." o titoli duplicati a livello di capitolo.
 """
 
-QA_GENERATOR_PROMPT = """
+CHAPTER_QA_GENERATOR_PROMPT = """
 Sei un docente universitario esperto nella materia di questo corso.
-Basandoti sulle fonti caricate in questo notebook per la sezione "{section_number}: {section_title}" (in particolare le trascrizioni e le slide corrispondenti), genera due blocchi di materiali di supporto per lo studio:
-1. **Flashcard stile Anki**: Crea una lista di sole 2 o 3 flashcard domanda/risposta sui dettagli più complessi o nozionistici. Formattale esattamente in questo modo:
+Basandoti sulle fonti caricate in questo notebook per il capitolo "{chapter_number}: {chapter_title}" (in particolare le trascrizioni e le slide corrispondenti), genera due blocchi di materiali di supporto per lo studio dell'intero capitolo:
+1. **Flashcard stile Anki**: Crea una lista di sole 3 flashcard domanda/risposta sui concetti e dettagli più complessi o importanti di questo intero capitolo. Formattale esattamente in questo modo:
    **D**: [Domanda chiara e concisa]
    **R**: [Risposta precisa e approfondita]
    ---
-2. **Domande d'Esame Simulate**: Crea 1 domanda a risposta aperta tipica di un esame universitario, con relative soluzione ideale e dettagliata.
+2. **Domanda d'Esame Simulata**: Crea 1 domanda a risposta aperta tipica di un esame universitario, con relative soluzione ideale e dettagliata.
 
-Rispondi in formato Markdown pronto da appendere in coda alla sezione, senza introduzioni o commenti di servizio.
+Rispondi in formato Markdown pronto da appendere in coda al capitolo, senza introduzioni o commenti di servizio.
 """
 
 MERMAID_PROMPT = """
