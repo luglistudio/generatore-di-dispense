@@ -744,7 +744,7 @@ def write_sections(project_dir: Path, notebook_name: str = "default", force: boo
                 qa_content = ask_notebooklm(prompt_qa, source_ids=None)
                 if qa_content:
                     log_progress(sec_num, "✅ Materiale di autoverifica del capitolo ricevuto.")
-                    section_content += "\n\n---\n\n## 🧠 Materiale di Autoverifica del Capitolo\n\n" + qa_content
+                    section_content += "\n\n---\n\n### 🧠 Materiale di Autoverifica del Capitolo\n\n" + qa_content
                 else:
                     log_progress(sec_num, "⚠️ Impossibile generare materiale di autoverifica, proseguo comunque.")
 
@@ -758,7 +758,7 @@ def write_sections(project_dir: Path, notebook_name: str = "default", force: boo
             mermaid_content = ask_notebooklm(prompt_mermaid, source_ids=source_ids)
             if mermaid_content and "```mermaid" in mermaid_content:
                 log_progress(sec_num, "✅ Diagramma Mermaid ricevuto.")
-                section_content = "## 📊 Diagramma Concettuale\n\n" + mermaid_content + "\n\n" + section_content
+                section_content = "### 📊 Diagramma Concettuale\n\n" + mermaid_content + "\n\n" + section_content
             else:
                 log_progress(sec_num, "ℹ️ Nessun diagramma Mermaid generato o rilevato.")
 
