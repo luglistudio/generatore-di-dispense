@@ -25,6 +25,7 @@ log_queue = queue.Queue()
 running_lock = threading.Lock()
 is_running = False
 current_action = None
+active_thread = None
 
 def gui_log_callback(level: str, msg: str):
     # Rimuove ritorni a capo finali per evitare doppie righe vuote nella console web
@@ -344,6 +345,24 @@ HTML_TEMPLATE = """
             box-shadow: 0 6px 16px rgba(16, 185, 129, 0.3);
         }
 
+        .btn-danger {
+            background: linear-gradient(135deg, #ef4444 0%, #b91c1c 100%);
+            border: none;
+            color: white;
+            padding: 15px 20px;
+            font-size: 14px;
+            font-weight: 700;
+            text-align: center;
+            justify-content: center;
+            box-shadow: 0 4px 12px rgba(239, 68, 68, 0.2);
+            letter-spacing: 0.5px;
+        }
+
+        .btn-danger:hover:not(:disabled) {
+            background: linear-gradient(135deg, #dc2626 0%, #991b1b 100%);
+            box-shadow: 0 6px 16px rgba(239, 68, 68, 0.3);
+        }
+
         .terminal-container {
             display: flex;
             flex-direction: column;
@@ -502,6 +521,10 @@ HTML_TEMPLATE = """
                 <button class="btn btn-primary action-btn" onclick="runAction('all')" style="margin-top: 10px;">
                     ▶️ CREA DISPENSA COMPLETA
                 </button>
+                
+                <button id="stopBtn" class="btn btn-danger" onclick="stopAction()" style="margin-top: 10px;" disabled>
+                    🛑 INTERROMPI OPERAZIONE
+                </button>
             </div>
         </div>
 
@@ -526,6 +549,7 @@ HTML_TEMPLATE = """
         const statusDot = document.getElementById('statusDot');
         const statusText = document.getElementById('statusText');
         const actionButtons = document.querySelectorAll('.action-btn');
+        const stopBtn = document.getElementById('stopBtn');
 
         // Caricamento dei notebook dinamici all'avvio
         function loadNotebooks() {
@@ -614,10 +638,12 @@ HTML_TEMPLATE = """
                         statusDot.classList.add('running');
                         statusText.textContent = `Esecuzione: ${data.action.toUpperCase()}`;
                         actionButtons.forEach(btn => btn.disabled = true);
+                        stopBtn.disabled = false;
                     } else {
                         statusDot.classList.remove('running');
                         statusText.textContent = 'Pronto';
                         actionButtons.forEach(btn => btn.disabled = false);
+                        stopBtn.disabled = true;
                     }
                 });
         }
@@ -658,6 +684,28 @@ HTML_TEMPLATE = """
                 appendLog('ERROR', 'Errore di connessione al server locale.');
             });
         }
+
+        function stopAction() {
+            if (confirm("Sei sicuro di voler interrompere l'operazione in corso? Questo equivale a un'interruzione di emergenza (Ctrl+C).")) {
+                appendLog('SYSTEM', 'Invio richiesta di interruzione...');
+                fetch('/stop_action', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' }
+                })
+                .then(r => r.json())
+                .then(data => {
+                    if (data.status === 'stopped' || data.status === 'stopping') {
+                        appendLog('SYSTEM', 'Interruzione inviata con successo.');
+                        checkStatus();
+                    } else {
+                        appendLog('ERROR', data.error || 'Impossibile inviare il comando di stop.');
+                    }
+                })
+                .catch(err => {
+                    appendLog('ERROR', 'Errore di connessione al server locale durante lo stop.');
+                });
+            }
+        }
     </script>
 </body>
 </html>
@@ -694,7 +742,7 @@ def get_notebooks():
 
 @app.route('/run_action', methods=['POST'])
 def run_action():
-    global is_running, current_action
+    global is_running, current_action, active_thread
     
     if is_running:
         return jsonify({"status": "error", "error": "Un'operazione è già in corso."}), 400
@@ -711,11 +759,31 @@ def run_action():
     is_running = True
     current_action = action
     
-    thread = threading.Thread(target=execute_backend_action, args=(action, nb_name, force, dry_run))
-    thread.daemon = True
-    thread.start()
+    active_thread = threading.Thread(target=execute_backend_action, args=(action, nb_name, force, dry_run))
+    active_thread.daemon = True
+    active_thread.start()
     
     return jsonify({"status": "started"})
+
+@app.route('/stop_action', methods=['POST'])
+def stop_action():
+    global is_running, active_thread
+    if not is_running or not active_thread or not active_thread.is_alive():
+        return jsonify({"status": "error", "error": "Nessuna operazione in corso."}), 400
+        
+    import ctypes
+    thread_id = active_thread.ident
+    if thread_id:
+        res = ctypes.pythonapi.PyThreadState_SetAsyncExc(ctypes.c_long(thread_id), ctypes.py_object(KeyboardInterrupt))
+        if res > 1:
+            ctypes.pythonapi.PyThreadState_SetAsyncExc(ctypes.c_long(thread_id), None)
+            return jsonify({"status": "error", "error": "Errore durante il tentativo di interrompere l'operazione."}), 500
+        
+        is_running = False
+        log_queue.put(("WARNING", "⚠️ Richiesta di interruzione inviata (Ctrl+C). Attesa arresto..."))
+        return jsonify({"status": "stopping"})
+        
+    return jsonify({"status": "error", "error": "Impossibile identificare il thread dell'operazione."}), 500
 
 def execute_backend_action(action: str, nb_name: str, force: bool, dry_run: bool):
     global is_running, current_action
@@ -771,6 +839,8 @@ def execute_backend_action(action: str, nb_name: str, force: bool, dry_run: bool
         else:
             log_queue.put(("INFO", f"🎉 Operazione '{action.upper()}' conclusa con successo!"))
         
+    except KeyboardInterrupt:
+        log_queue.put(("WARNING", f"⚠️ Operazione '{action.upper()}' interrotta dall'utente (Ctrl+C)."))
     except Exception as e:
         import traceback
         err_trace = traceback.format_exc()
