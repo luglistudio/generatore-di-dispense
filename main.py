@@ -95,6 +95,21 @@ def setup_directories(project_dir: Path):
     (project_dir / "output" / "assets").mkdir(parents=True, exist_ok=True)
     log_info(f"📁 Struttura directory inizializzata in {project_dir}")
 
+def get_output_dir(project_dir: Path, notebook_name: str) -> Path:
+    """Restituisce la directory di output specifica per il notebook corrente, sanificandone il nome."""
+    if not notebook_name:
+        notebook_name = "default"
+    # Sostituisce spazi e caratteri speciali con underscore, toglie maiuscole
+    safe_name = re.sub(r'[\s_]+', '_', notebook_name.lower().strip())
+    safe_name = re.sub(r'[^\w\-]', '', safe_name)
+    if not safe_name:
+        safe_name = "default"
+    
+    out_dir = project_dir / "output" / safe_name
+    out_dir.mkdir(parents=True, exist_ok=True)
+    (out_dir / "assets").mkdir(parents=True, exist_ok=True)
+    return out_dir
+
 def get_or_create_notebook(notebook_name: str) -> str:
     """Verifica se il notebook esiste, altrimenti lo crea, e lo imposta come attivo."""
     log_info(f"🔍 Ricerca del notebook '{notebook_name}'...")
@@ -511,10 +526,11 @@ def _step5_sources(project_dir: Path, state: dict, state_path: Path, blueprint_p
         log_error(f"❌ Errore nel salvataggio del blueprint.json finale: {e}")
         return {}
 
-def generate_blueprint(project_dir: Path, force: bool = False, dry_run: bool = False) -> dict:
+def generate_blueprint(project_dir: Path, notebook_name: str = "default", force: bool = False, dry_run: bool = False) -> dict:
     """Genera il blueprint del corso in modalità multi-step con supporto a salvataggi intermedi, ripresa automatica e simulazione dry-run."""
-    blueprint_path = project_dir / "output" / "blueprint.json"
-    state_path = project_dir / "output" / "blueprint_state.json"
+    output_dir = get_output_dir(project_dir, notebook_name)
+    blueprint_path = output_dir / "blueprint.json"
+    state_path = output_dir / "blueprint_state.json"
     
     if force:
         if state_path.exists():
@@ -540,7 +556,7 @@ def generate_blueprint(project_dir: Path, force: bool = False, dry_run: bool = F
             return {}
             
     if state["course_profile"]:
-        profile_path = project_dir / "output" / "course_profile.json"
+        profile_path = output_dir / "course_profile.json"
         try:
             with open(profile_path, "w", encoding="utf-8") as f:
                 json.dump(state["course_profile"], f, indent=2, ensure_ascii=False)
@@ -611,9 +627,10 @@ def log_progress(sec_num: str, msg: str):
     timestamp = datetime.datetime.now().strftime("%H:%M:%S")
     log_info(f"[{timestamp}] [Sezione {sec_num}] {msg}")
 
-def write_sections(project_dir: Path, force: bool = False, target_section: str = None, dry_run: bool = False):
+def write_sections(project_dir: Path, notebook_name: str = "default", force: bool = False, target_section: str = None, dry_run: bool = False):
     """Avvia il loop di stesura dei micro-chunk di ciascuna sezione con supporto dry-run e pulizia sicura delle citazioni."""
-    blueprint_path = project_dir / "output" / "blueprint.json"
+    output_dir = get_output_dir(project_dir, notebook_name)
+    blueprint_path = output_dir / "blueprint.json"
     if not blueprint_path.exists():
         log_error("❌ Errore: Blueprint non trovato. Generalo prima usando l'azione 'blueprint'.")
         return
@@ -652,7 +669,7 @@ def write_sections(project_dir: Path, force: bool = False, target_section: str =
                     continue
                 current_idx += 1
                 clean_sec_num = sec_num.replace(".", "_")
-                output_file = project_dir / "output" / f"Sezione_{clean_sec_num}.md"
+                output_file = output_dir / f"Sezione_{clean_sec_num}.md"
                 status = "Esistente (salto)" if output_file.exists() and not force else ("Esistente (sovrascrivo)" if output_file.exists() else "Da creare")
                 log_info(f"       [{current_idx}/{total_sections}] Sezione {sec_num}: '{sec_title}'")
                 log_info(f"         - Target: {sec.get('target_word_count', 1500)} parole")
@@ -682,7 +699,7 @@ def write_sections(project_dir: Path, force: bool = False, target_section: str =
             progress_str = f"{current_sec_idx}/{total_sections}"
 
             clean_sec_num = sec_num.replace(".", "_")
-            output_file = project_dir / "output" / f"Sezione_{clean_sec_num}.md"
+            output_file = output_dir / f"Sezione_{clean_sec_num}.md"
 
             # Checkpoint: evita di sovrascrivere se il file esiste (a meno di --force)
             if output_file.exists() and not force:
@@ -758,17 +775,17 @@ def write_sections(project_dir: Path, force: bool = False, target_section: str =
                 out_f.write(section_content)
             log_progress(sec_num, f"💾 Sezione salvata in {output_file.name}\n")
 
-def generate_concept_cards(project_dir: Path, force: bool = False, chunk_size: int = 5, dry_run: bool = False):
+def generate_concept_cards(project_dir: Path, notebook_name: str = "default", force: bool = False, chunk_size: int = 5, dry_run: bool = False):
     """Trova tutti i wikilink nelle sezioni generate e crea file markdown dedicati in output/concepts/ in chunk configurabili."""
     log_info("\n📇 Scansione e generazione delle schede concettuali in batch (Obsidian wikilinks)...")
-    output_dir = project_dir / "output"
+    output_dir = get_output_dir(project_dir, notebook_name)
     concepts_dir = output_dir / "concepts"
     concepts_dir.mkdir(parents=True, exist_ok=True)
     
     # 1. Raccogli tutti i file di sezione (Sezione_*.md)
     section_files = sorted(list(output_dir.glob("Sezione_*.md")))
     if not section_files:
-        log_warning("⚠️ Nessuna sezione trovata in output/. Genera prima le sezioni con l'azione 'write'.")
+        log_warning(f"⚠️ Nessuna sezione trovata in {output_dir.name}/. Genera prima le sezioni con l'azione 'write'.")
         return
         
     # 2. Cerca tutti i doppi bracket [[Concetto]]
@@ -916,9 +933,10 @@ def generate_concept_cards(project_dir: Path, force: bool = False, chunk_size: i
         
     log_info("✅ Generazione schede concettuali completata!")
 
-def create_obsidian_config(project_dir: Path):
+def create_obsidian_config(project_dir: Path, notebook_name: str = "default"):
     """Crea le configurazioni di base di Obsidian (es. graph view colors) in output/.obsidian/"""
-    obsidian_dir = project_dir / "output" / ".obsidian"
+    output_dir = get_output_dir(project_dir, notebook_name)
+    obsidian_dir = output_dir / ".obsidian"
     obsidian_dir.mkdir(parents=True, exist_ok=True)
     
     appearance_path = obsidian_dir / "appearance.json"
@@ -1119,7 +1137,7 @@ def main():
     # Esegui controlli preliminari per le altre azioni
     check_env()
     setup_directories(project_dir)
-    create_obsidian_config(project_dir)
+    create_obsidian_config(project_dir, args.notebook_name)
     
     # Assicura il notebook e carica i file
     get_or_create_notebook(args.notebook_name)
@@ -1127,18 +1145,20 @@ def main():
 
     # 2. Generazione del Blueprint
     if args.action in ["blueprint", "all"]:
-        blueprint_path = project_dir / "output" / "blueprint.json"
+        output_dir = get_output_dir(project_dir, args.notebook_name)
+        blueprint_path = output_dir / "blueprint.json"
         if not blueprint_path.exists() or args.force or args.action == "blueprint":
-            generate_blueprint(project_dir, force=args.force, dry_run=args.dry_run)
+            generate_blueprint(project_dir, notebook_name=args.notebook_name, force=args.force, dry_run=args.dry_run)
 
     # 3. Micro-stesura delle sezioni
     if args.action in ["write", "all"]:
-        write_sections(project_dir, force=args.force, target_section=args.section, dry_run=args.dry_run)
+        write_sections(project_dir, notebook_name=args.notebook_name, force=args.force, target_section=args.section, dry_run=args.dry_run)
 
     # 3b. Generazione delle schede concettuali
     if args.action in ["concepts", "all"]:
         generate_concept_cards(
             project_dir,
+            notebook_name=args.notebook_name,
             force=args.force,
             chunk_size=args.concept_chunk_size,
             dry_run=args.dry_run
@@ -1147,8 +1167,9 @@ def main():
     # 4. Compilazione della dispensa
     if args.action in ["compile", "all"] and not args.dry_run:
         log_info("\n🗂️ Compilazione della dispensa finale in corso...")
-        blueprint_path = project_dir / "output" / "blueprint.json"
-        res = compiler.compile_dispensa(blueprint_path, project_dir / "output")
+        output_dir = get_output_dir(project_dir, args.notebook_name)
+        blueprint_path = output_dir / "blueprint.json"
+        res = compiler.compile_dispensa(blueprint_path, output_dir)
         if res["success"]:
             log_info(f"🎉 Compilazione completata con successo!")
             log_info(f"📝 Markdown: {res['markdown_path']}")
