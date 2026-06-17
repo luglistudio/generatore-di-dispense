@@ -742,20 +742,33 @@ def execute_backend_action(action: str, nb_name: str, force: bool, dry_run: bool
         # Generazione Blueprint
         if action in ["blueprint", "all"]:
             main.generate_blueprint(project_dir, force=force, dry_run=dry_run)
+            if action == "blueprint":
+                log_queue.put(("INFO", "✅ Blueprint (Indice) creato con successo! Ora puoi procedere allo step successivo: '3. Scrivi Capitoli'."))
             
         # Micro-stesura Sezioni
         if action in ["write", "all"]:
             main.write_sections(project_dir, force=force, dry_run=dry_run)
+            if action == "write":
+                log_queue.put(("INFO", "✅ Capitoli scritti con successo! Ora puoi procedere allo step successivo: '4. Genera Concetti (Obsidian)'."))
             
         # Generazione Concetti
         if action in ["concepts", "all"]:
             main.generate_concept_cards(project_dir, force=force, chunk_size=5, dry_run=dry_run)
+            if action == "concepts":
+                log_queue.put(("INFO", "✅ Schede dei concetti generate con successo! Ora puoi procedere allo step successivo: '5. Compila PDF & HTML'."))
             
         # Compilazione Dispensa Completa
         if action in ["compile", "all"] and not dry_run:
-            compiler.compile_dispensa(project_dir)
+            blueprint_path = project_dir / "output" / "blueprint.json"
+            output_dir = project_dir / "output"
+            compiler.compile_dispensa(blueprint_path, output_dir)
+            if action == "compile":
+                log_queue.put(("INFO", "✅ Dispensa compilata in PDF e HTML con successo! Trovi i file nella cartella 'output'."))
             
-        log_queue.put(("INFO", f"🎉 Operazione '{action.upper()}' conclusa con successo!"))
+        if action == "all":
+            log_queue.put(("INFO", "🎉 Generazione della dispensa completa conclusa con successo! Trovi tutti i file (PDF, HTML, file markdown e concetti per Obsidian) nella cartella 'output'."))
+        else:
+            log_queue.put(("INFO", f"🎉 Operazione '{action.upper()}' conclusa con successo!"))
         
     except Exception as e:
         import traceback
