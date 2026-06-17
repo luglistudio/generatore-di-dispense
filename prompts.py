@@ -30,16 +30,16 @@ Profilo del Corso:
 {course_profile_json}
 
 Rispondi esclusivamente in formato JSON valido con questa struttura:
-{
+{{
   "course_name": "Nome ufficiale del corso",
   "chapters": [
-    {
+    {{
       "chapter_number": 1,
       "title": "Titolo del Capitolo 1",
       "summary": "Riassunto concettuale di cosa coprirà questo capitolo."
-    }
+    }}
   ]
-}
+}}
 """
 
 CHAPTER_SECTIONS_PROMPT = """
